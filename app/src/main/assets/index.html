@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aether Loto Auto</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { 
+            --bg: #050505; --card: #0f0f13; --accent: #00ff41; --text: #d1d5db; --border: #1f2937;
+            --hot: #10b981; --cold: #3b82f6; --danger: #ef4444; --gold: #fbbf24; --font: 'Courier New', Courier, monospace;
+        }
+        body { margin: 0; padding: 0; font-family: var(--font); background-color: var(--bg); color: var(--text); display: flex; flex-direction: column; min-height: 100vh; overflow-x: hidden; }
+        
+        #header { padding: 10px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); background: #000; position: sticky; top: 0; z-index: 100; }
+        #header h1 { margin: 0; font-size: 16px; color: var(--accent); letter-spacing: 2px; font-weight: 900; text-shadow: 0 0 8px rgba(0,255,65,0.3); }
+        #status { font-size: 10px; color: var(--gold); }
+
+        #tabs { display: flex; background: #000; border-bottom: 1px solid var(--border); overflow-x: auto;}
+        .tab { flex: 1; padding: 12px 5px; text-align: center; font-size: 10px; font-weight: bold; color: #6b7280; cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; text-transform: uppercase;}
+        .tab.active { color: var(--accent); border-bottom-color: var(--accent); background: var(--card); }
+
+        .container { padding: 10px; display: none; flex-direction: column; gap: 10px; }
+        .container.active { display: flex; }
+
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 4px; padding: 12px; }
+        .card h3 { margin: 0 0 10px 0; font-size: 11px; color: var(--accent); text-transform: uppercase; border-bottom: 1px solid var(--border); padding-bottom: 8px; display: flex; justify-content: space-between;}
+
+        .grid-5x5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+        .cell { aspect-ratio: 1; display: flex; justify-content: center; align-items: center; border-radius: 2px; background: #111; border: 1px solid #333; font-size: 13px; font-weight: bold; color: #555; }
+        .cell.hot { border-color: var(--hot); color: var(--hot); }
+        .cell.cold { border-color: var(--cold); color: var(--cold); }
+
+        .ball-grid { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; }
+        .ball { width: 28px; height: 28px; display: flex; justify-content: center; align-items: center; font-size: 12px; font-weight: bold; background: #111; border: 1px solid var(--accent); color: var(--accent); }
+
+        select, input, button.gen-btn { width: 100%; background: #000; color: var(--accent); border: 1px solid var(--border); padding: 10px; border-radius: 4px; font-size: 12px; font-family: inherit; outline: none; margin-bottom: 8px; box-sizing: border-box;}
+        select:focus, input:focus { border-color: var(--accent); }
+        button.gen-btn { background: var(--accent); color: #000; cursor: pointer; text-transform: uppercase; font-weight: bold; letter-spacing: 1px; border: none;}
+        
+        .filter-row { display: flex; gap: 10px; }
+        .filter-group { flex: 1; }
+        .filter-group label { display: block; font-size: 9px; color: #6b7280; margin-bottom: 4px; text-transform: uppercase;}
+
+        .saved-item { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #222; padding: 6px 0; font-size: 11px;}
+        .action-btn { background: #222; color: #fff; border: 1px solid #444; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 10px; margin-left: 5px;}
+        .action-btn.copy { color: var(--accent); border-color: var(--accent); }
+        .action-btn.del { color: var(--danger); border-color: var(--danger); }
+
+        #terminal { display: none; background: #000; color: var(--accent); font-size: 10px; padding: 10px; border: 1px solid var(--border); border-radius: 4px; height: 80px; overflow-y: auto; margin-bottom: 10px;}
+    </style>
+</head>
+<body>
+    <div id="header">
+        <h1>AETHER LOTO AUTO</h1>
+        <div id="status">Carregando...</div>
+    </div>
+
+    <div id="tabs">
+        <div class="tab active" onclick="switchTab('tab-dash')">Análise</div>
+        <div class="tab" onclick="switchTab('tab-gen')">Gerador</div>
+        <div class="tab" onclick="switchTab('tab-save')">Jogos</div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div id="tab-dash" class="container active">
+        <div class="card">
+            <h3>Heatmap (Frequência)</h3>
+            <div class="grid-5x5" id="grid-map"></div>
+        </div>
+        <div class="card">
+            <h3>Top 10 Frequentes</h3>
+            <canvas id="chartFreq" height="120"></canvas>
+        </div>
+        <div class="card">
+            <h3>Estatísticas do Histórico</h3>
+            <div style="font-size: 11px; line-height: 1.6; color:#9ca3af;">
+                <div>Total de Concursos: <span style="color:#fff; float:right;" id="stat-total">-</span></div>
+                <div>Média de Pares: <span style="color:#fff; float:right;" id="stat-pares">-</span></div>
+                <div>Média de Primos: <span style="color:#fff; float:right;" id="stat-primos">-</span></div>
+                <div>Soma Média: <span style="color:#fff; float:right;" id="stat-soma">-</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- GERADOR -->
+    <div id="tab-gen" class="container">
+        <div class="card">
+            <h3>Configurar Jogo</h3>
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label>Qtd. Jogos</label>
+                    <input type="number" id="qtd-jogos" value="3" min="1" max="10">
+                </div>
+                <div class="filter-group">
+                    <label>Pares (Exatos)</label>
+                    <input type="number" id="f-pares" value="7" min="0" max="15">
+                </div>
+            </div>
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label>Soma Mínima</label>
+                    <input type="number" id="f-soma-min" value="175">
+                </div>
+                <div class="filter-group">
+                    <label>Soma Máxima</label>
+                    <input type="number" id="f-soma-max" value="205">
+                </div>
+            </div>
+            <button class="gen-btn" onclick="gerarJogos()">GERAR JOGOS OTIMIZADOS</button>
+        </div>
+        <div id="terminal"></div>
+        <div id="resultados-gerados" style="display:flex; flex-direction:column; gap:10px;"></div>
+    </div>
+
+    <!-- SALVOS -->
+    <div id="tab-save" class="container">
+        <div class="card">
+            <h3>Meus Jogos Salvos</h3>
+            <div id="saved-list"></div>
+        </div>
+    </div>
+
+    <script>
+        let database = [];
+        let analysisData = {};
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.container').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            event.target.classList.add('active');
+            if(tabId === 'tab-save') renderSaved();
+        }
+
+        function isPrime(num) {
+            for(let i = 2; i < num; i++) if(num % i === 0) return false;
+            return num > 1;
+        }
+
+        // --- DOWNLOAD AUTOMÁTICO DO HISTÓRICO ---
+        async function baixarHistorico() {
+            const status = document.getElementById('status');
+            status.innerText = "Baixando histórico...";
+            
+            try {
+                // API gratuita que retorna todos os concursos da Lotofácil
+                const url = "https://raw.githubusercontent.com/maickon/free-apiloterias/refs/heads/master/database/lotofacil/_todos.json";
+                const resp = await fetch(url);
+                const data = await resp.json();
+                
+                // O JSON é um array de objetos, cada um com 'listaDezenas'
+                database = data.map(draw => draw.listaDezenas.map(Number));
+                status.innerText = `${database.length} concursos carregados`;
+                status.style.color = "var(--accent)";
+                
+                analisarBase();
+            } catch (e) {
+                status.innerText = "Erro ao baixar. Usando base local.";
+                status.style.color = "var(--danger)";
+                // Base local de emergência (apenas alguns sorteios)
+                database = [
+                    [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],
+                    [1,3,4,5,6,7,9,10,12,13,14,15,17,18,20]
+                ];
+                analisarBase();
+            }
+        }
+
+        function analisarBase() {
+            if(database.length === 0) return;
+            
+            let freq = {};
+            for (let i = 1; i <= 25; i++) freq[i] = 0;
+            
+            database.forEach(draw => {
+                draw.forEach(num => { freq[num]++; });
+            });
+            
+            let sortedFreq = Object.keys(freq).map(Number).sort((a, b) => freq[b] - freq[a]);
+            let maxFreq = Math.max(...Object.values(freq));
+            
+            // Estatísticas
+            let sumTotal = 0, paresTotal = 0, primosTotal = 0;
+            database.forEach(draw => {
+                sumTotal += draw.reduce((a, b) => a + b, 0);
+                paresTotal += draw.filter(n => n % 2 === 0).length;
+                primosTotal += draw.filter(n => isPrime(n)).length;
+            });
+
+            document.getElementById('stat-total').innerText = database.length;
+            document.getElementById('stat-pares').innerText = (paresTotal / database.length).toFixed(1);
+            document.getElementById('stat-primos').innerText = (primosTotal / database.length).toFixed(1);
+            document.getElementById('stat-soma').innerText = Math.round(sumTotal / database.length);
+
+            analysisData = { freq, sortedFreq, maxFreq };
+            renderHeatmap();
+            renderChart();
+        }
+
+        function renderHeatmap() {
+            const grid = document.getElementById('grid-map');
+            grid.innerHTML = '';
+            
+            for (let i = 1; i <= 25; i++) {
+                let cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.innerText = i;
+                
+                let intensity = analysisData.freq[i] / analysisData.maxFreq;
+                let lightness = 10 + (intensity * 30);
+                cell.style.backgroundColor = `hsl(120, 100%, ${lightness}%)`;
+                
+                if (analysisData.sortedFreq.slice(0, 7).includes(i)) {
+                    cell.classList.add('hot');
+                } else if (analysisData.sortedFreq.slice(-5).includes(i)) {
+                    cell.classList.add('cold');
+                }
+                
+                grid.appendChild(cell);
+            }
+        }
+
+        function renderChart() {
+            const ctx = document.getElementById('chartFreq').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: analysisData.sortedFreq.slice(0, 10).map(String),
+                    datasets: [{
+                        data: analysisData.sortedFreq.slice(0, 10).map(n => analysisData.freq[n]),
+                        backgroundColor: 'rgba(0, 255, 65, 0.5)',
+                        borderColor: '#00ff41',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { color: '#6b7280', stepSize: 1 } },
+                        x: { ticks: { color: '#6b7280' } }
+                    }
+                }
+            });
+        }
+
+        function logTerminal(msg) {
+            const term = document.getElementById('terminal');
+            term.style.display = 'block';
+            let line = document.createElement('div');
+            line.innerText = `[>] ${msg}`;
+            term.appendChild(line);
+            term.scrollTop = term.scrollHeight;
+        }
+
+        async function gerarJogos() {
+            if (database.length === 0) { alert("Histórico não carregado."); return; }
+            
+            const term = document.getElementById('terminal');
+            term.innerHTML = '';
+            document.getElementById('resultados-gerados').innerHTML = '';
+            
+            let qtd = parseInt(document.getElementById('qtd-jogos').value);
+            let fPares = parseInt(document.getElementById('f-pares').value);
+            let fSomaMin = parseInt(document.getElementById('f-soma-min').value);
+            let fSomaMax = parseInt(document.getElementById('f-soma-max').value);
+
+            logTerminal(`Gerando ${qtd} jogos...`);
+            await sleep(300);
+
+            for(let i=0; i<qtd; i++) {
+                logTerminal(`Processando jogo ${i+1}/${qtd}...`);
+                await sleep(200);
+                
+                let jogo = [];
+                let tentativas = 0;
+                let isValid = false;
+                
+                while(!isValid && tentativas < 100000) {
+                    tentativas++;
+                    jogo = [];
+                    while(jogo.length < 15) {
+                        let r = Math.floor(Math.random() * 25) + 1;
+                        if(!jogo.includes(r)) jogo.push(r);
+                    }
+                    jogo.sort((a, b) => a - b);
+
+                    let pares = jogo.filter(n => n % 2 === 0).length;
+                    let soma = jogo.reduce((a, b) => a + b, 0);
+                    
+                    if(pares === fPares && soma >= fSomaMin && soma <= fSomaMax) {
+                        isValid = true;
+                    }
+                }
+                
+                if(isValid) {
+                    renderJogo(jogo, i+1);
+                } else {
+                    logTerminal(`[!] Falha no jogo ${i+1}. Aumente as margens de soma.`);
+                }
+            }
+            logTerminal("Concluído.");
+        }
+
+        function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+        function renderJogo(jogo, index) {
+            let container = document.getElementById('resultados-gerados');
+            let card = document.createElement('div');
+            card.className = 'card';
+            
+            let grid = document.createElement('div');
+            grid.className = 'ball-grid';
+            jogo.forEach(n => {
+                let b = document.createElement('div');
+                b.className = 'ball';
+                b.innerText = n;
+                grid.appendChild(b);
+            });
+            card.appendChild(grid);
+            
+            let saveBtn = document.createElement('button');
+            saveBtn.className = 'gen-btn';
+            saveBtn.innerText = `SALVAR JOGO ${index}`;
+            saveBtn.onclick = () => salvarJogo(jogo);
+            card.appendChild(saveBtn);
+
+            container.appendChild(card);
+        }
+
+        function salvarJogo(jogo) {
+            let saved = JSON.parse(localStorage.getItem('aether_auto')) || [];
+            saved.push(jogo);
+            localStorage.setItem('aether_auto', JSON.stringify(saved));
+            alert("Jogo salvo!");
+        }
+
+        function renderSaved() {
+            let saved = JSON.parse(localStorage.getItem('aether_auto')) || [];
+            let list = document.getElementById('saved-list');
+            list.innerHTML = '';
+            
+            if(saved.length === 0) {
+                list.innerHTML = '<div style="font-size:11px; color:#6b7280; text-align:center;">Nenhum jogo salvo.</div>';
+                return;
+            }
+
+            saved.forEach((jogo, i) => {
+                let item = document.createElement('div');
+                item.className = 'saved-item';
+                item.innerHTML = `<span>${jogo.join(' ')}</span>`;
+                
+                let delBtn = document.createElement('button');
+                delBtn.className = 'action-btn del';
+                delBtn.innerText = 'X';
+                delBtn.onclick = () => { 
+                    saved.splice(i, 1);
+                    localStorage.setItem('aether_auto', JSON.stringify(saved));
+                    renderSaved();
+                };
+                item.appendChild(delBtn);
+                list.appendChild(item);
+            });
+        }
+
+        window.onload = () => {
+            baixarHistorico();
+        };
+    </script>
+</body>
+</html>
